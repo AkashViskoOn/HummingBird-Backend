@@ -1,0 +1,34 @@
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+env/
+
+# Node.js dependencies
+node_modules/
+
+# Composer dependencies
+/vendor/
+
+# Local private keys
+*.ppk
+
+# PHPUnit cache
+.phpunit.result.cache
+
+# CodeIgniter writable files
+/writable/cache/*
+!/writable/cache/index.html
+
+/writable/logs/*
+!/writable/logs/index.html
+
+/writable/session/*
+/writable/debugbar/*
+
+# Private credentials
+/app/Controllers/pvKey.json
+
+# Private credentials
+/app/Controllers/pvKey.json

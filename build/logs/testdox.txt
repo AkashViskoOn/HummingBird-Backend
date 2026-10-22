@@ -1,0 +1,137 @@
+Api Auth Enforcement Feature (Tests\ApiAuthEnforcementFeature)
+ [x] Unauthenticated request is rejected with data set "user dashboard-details"
+ [x] Unauthenticated request is rejected with data set "user get-single-user"
+ [x] Unauthenticated request is rejected with data set "user block-user"
+ [x] Unauthenticated request is rejected with data set "contact add-contact"
+ [x] Unauthenticated request is rejected with data set "contact fetch-contacts"
+ [x] Unauthenticated request is rejected with data set "contact check-user"
+ [x] Unauthenticated request is rejected with data set "room create-room"
+ [x] Unauthenticated request is rejected with data set "room fetch-rooms"
+ [x] Unauthenticated request is rejected with data set "room get-group-info"
+ [x] Unauthenticated request is rejected with data set "message send-message"
+ [x] Unauthenticated request is rejected with data set "message fetch-messages"
+ [x] Unauthenticated request is rejected with data set "message get-scheduled"
+ [x] Unauthenticated request is rejected with data set "message forward-message"
+ [x] Unauthenticated request is rejected with data set "message message-info"
+ [x] Unauthenticated request is rejected with data set "scheduling-data get"
+ [x] Unauthenticated request is rejected with data set "ai categorize"
+ [x] Unauthenticated request is rejected with data set "ai summarize"
+ [x] Unauthenticated request is rejected with data set "generative-ai get-ai"
+ [x] Unauthenticated request is rejected with data set "report report-user"
+ [x] Unauthenticated request is rejected with data set "search search-messages"
+ [x] Unauthenticated request is rejected with data set "media compress"
+ [x] Unauthenticated request is rejected with data set "media info"
+ [x] Unauthenticated request is rejected with data set "media gallery"
+ [x] Unauthenticated request is rejected with data set "call init"
+ [x] Unauthenticated request is rejected with data set "call history"
+ [x] Unauthenticated request is rejected with data set "call block"
+ [x] Unauthenticated request is rejected with data set "schedule categories"
+ [x] Unauthenticated request is rejected with data set "schedule get-templates"
+ [x] Unauthenticated request is rejected with data set "schedule upcoming"
+ [x] Unauthenticated request is rejected with data set "status my"
+ [x] Unauthenticated request is rejected with data set "status my-update"
+ [x] Unauthenticated request is rejected with data set "status create"
+ [x] Unauthenticated request is rejected with data set "status fetch-updates"
+ [x] Unauthenticated request is rejected with data set "moments list"
+ [x] Unauthenticated request is rejected with data set "moments schedule"
+ [x] Unauthenticated request is rejected with data set "moments calendar"
+ [x] Notification send notification route is not registered
+ [x] Emoji add emoji never answers status true
+
+Consumer Happy Path Feature (Tests\ConsumerHappyPathFeature)
+ [x] Valid jwt reaches success envelope
+ [x] No token is rejected
+ [x] Tampered token is rejected
+ [x] Expired token is rejected
+ [x] Token signed with wrong secret is rejected
+ [x] Wrong audience claim still passes
+
+Contact Ownership Feature (Tests\ContactOwnershipFeature)
+ [x] Add contact persists scoped to caller
+ [x] Add contact rejects global duplicate number
+ [x] Fetch contacts only returns own rows
+ [x] Owner can update own contact
+ [x] Non owner cannot update others contact
+ [x] Non owner cannot delete others contact
+ [x] Owner can delete own contact
+
+Desktop Pairing Feature (Tests\DesktopPairingFeature)
+ [x] Create pairing returns public values and no credential
+ [x] Anonymous caller cannot approve
+ [x] Anonymous caller cannot list linked devices
+ [x] Otp temp token cannot approve
+ [x] Otp temp token cannot reject
+ [x] Create without a claim secret is refused
+ [x] Claim before approve is refused
+ [x] Approve with wrong challenge is refused
+ [x] Happy path issues desktop token with required claims
+ [x] Claim secret is single use
+ [x] Wrong claim secret is refused
+ [x] Expired session resolves to terminal state
+ [x] Unknown pairing ref resolves expired
+ [x] Approve twice by another user is refused
+ [x] Approve twice by same user mints one device and stays claimable
+ [x] Rejected session cannot be claimed
+ [x] Linked devices lists linked desktop
+ [x] Revoked device disappears from linked devices list
+ [x] Revoked device token stops working immediately
+ [x] User cannot revoke the device it is signed in as
+ [x] Revoke all others keeps the current desktop
+ [x] Rename device updates only its own row
+ [x] Rename another users device is refused
+ [x] Logout revokes the calling desktop
+ [x] Revoked device token is rejected on an unrelated route
+ [x] Device status endpoint reports revocation
+ [x] Rate limiter refuses requests above capacity
+ [x] Create pairing returns 429 when the limiter refuses
+
+Health Feature (Tests\HealthFeature)
+ [x] Liveness always answers ok
+ [x] Liveness does not require database
+ [x] Readiness reports ready when dependencies are usable
+ [x] Readiness fails and names missing required secrets
+ [x] An empty secret counts as missing
+ [x] Probes never leak secret values
+ [x] Probes never leak database credentials
+ [x] Optional secrets are reported separately from required ones
+
+Internal Key Auth Feature (Tests\InternalKeyAuthFeature)
+ [x] Disable when key env missing with data set "scheduled message dispatch"
+ [x] Disable when key env missing with data set "status cleanup"
+ [x] Reject when key header missing with data set "scheduled message dispatch"
+ [x] Reject when key header missing with data set "status cleanup"
+ [x] Reject when key wrong with data set "scheduled message dispatch"
+ [x] Reject when key wrong with data set "status cleanup"
+ [x] Accept when key correct with data set "scheduled message dispatch"
+ [x] Accept when key correct with data set "status cleanup"
+ [x] Message endpoint does not accept jwt instead of key
+ [x] Scheduled endpoint reaches processing branch when authorised
+
+Metrics Feature (Tests\MetricsFeature)
+ [x] Metrics answers 200 without any auth
+ [x] Metrics is prometheus text format
+ [x] Request counter increments across requests
+ [x] Status code counter tracks responses
+ [x] Latency histogram is present
+ [x] Uptime and memory gauges are present
+ [x] Metrics never leaks secrets or dsns
+ [x] Metrics is usable while database is unreachable
+ [x] Request log appends per request to override path
+ [x] Request log never contains secrets
+
+Ownership Authorization Feature (Tests\OwnershipAuthorizationFeature)
+ [x] Non member fetching private room gets 403
+ [x] Member can fetch own room as control
+ [x] Non member cannot delete for everyone
+ [x] Non sender cannot delete for everyone
+ [x] Sender can delete for everyone within window
+ [x] Non member cannot delete for me
+ [x] Desktop style send without receiver id stores the peer
+ [x] Desktop style send with explicit receiver id stores the peer
+ [x] Album group id from client is stored on the row
+ [x] Album group id is sanitized before storage
+ [x] Ordinary send stores no group id
+
+Room Fetch Room Prefs Feature (Tests\RoomFetchRoomPrefsFeature)
+ [x] Archived and favorited prefs are read back per user
+
