@@ -279,10 +279,30 @@ class MessageController extends BaseController
                 // Normal messages must never carry a scheduled timestamp.
                 $mIsScheduled = '0';
                 $scheduledAt = '0';
+            } else {
+                // Flutter sends this through FormData too, so an empty value
+                // must not reach the numeric `m_scheduled_at` column.
+                $scheduledAt = (string) max(0, (int) $scheduledAt);
             }
+            // Optional scheduler/reply fields arrive as empty strings from
+            // Flutter's multipart FormData (Dio serialises null as ''). MySQL
+            // in STRICT_TRANS_TABLES rejects '' for numeric columns, which is
+            // why a normal mobile text send could fail while the desktop
+            // (which omits absent fields entirely) worked. Normalise here so
+            // every client gets the same valid row shape.
             $interval = $this->request->getVar('m_interval');
             $counter = $this->request->getVar('m_count');
             $repliedOn = $this->request->getVar('m_replied_on');
+
+            $interval = ($interval === null || trim((string) $interval) === '')
+                ? '0'
+                : (string) max(0, (int) $interval);
+            $counter = ($counter === null || trim((string) $counter) === '')
+                ? '0'
+                : (string) max(-1, (int) $counter);
+            $repliedOn = trim((string) ($repliedOn ?? ''));
+            $repliedOn = ($repliedOn === '' || $repliedOn === '0') ? null : $repliedOn;
+
             $userBlockList = json_decode($user['u_block_list'] ?? '[]', true) ?: [];
 
             $mSenderId = $user['user_id'];
@@ -458,9 +478,9 @@ class MessageController extends BaseController
                     'm_media' => $mediaPaths[$i] ?? '',
                     'm_is_scheduled' => $mIsScheduled,
                     'm_scheduled_at' => $scheduledAt,
-                    'm_interval' => $interval ?? '0',
-                    'm_count' => $counter ?? '0',
-                    'm_replied_on' => $repliedOn ?? null,
+                    'm_interval' => $interval,
+                    'm_count' => $counter,
+                    'm_replied_on' => $repliedOn,
                     // Stagger the epoch by row so album members keep their send
                     // order even when they land in the same second.
                     'm_epoch_time' => $baseEpoch + $i,
@@ -535,12 +555,18 @@ class MessageController extends BaseController
             // chat badge-only exactly like WhatsApp.
             $isRoomMuted = ($room['r_status'] ?? '1') == '0';
 
+            // Notification delivery is best-effort: the message is already
+            // persisted, so a missing ENCRYPTION_KEY, FCM failure or provider
+            // outage must never turn a successful send into a `status: false`
+            // response (the client then shows "could not be sent" and retries
+            // a message that is already in the room).
             if ($mIsScheduled == 0 && !$isPending && !$isRoomMuted) {
-                $notificationController = new NotificationController();
-                $encryptionHelper = new \App\Helpers\EncryptionService();
-                $decryptedBody = $encryptionHelper->decryptMessage($mMessage);
+                try {
+                    $notificationController = new NotificationController();
+                    $encryptionHelper = new \App\Helpers\EncryptionService();
+                    $decryptedBody = $encryptionHelper->decryptMessage($mMessage);
 
-                if ($room['r_type'] == 0) {
+                    $isGroupRoom = $room['r_type'] != 0;
                     foreach ($roomUserIds as $uid) {
                         if ($uid == $mSenderId) continue;
                         $recipient = $allUsers[$uid] ?? null;
@@ -550,22 +576,12 @@ class MessageController extends BaseController
                             $notificationController, $recipient,
                             $user['user_first_name'], $decryptedBody,
                             $mSenderId, $room['r_id'], $user['user_mobile_num'],
-                            '0', $user['user_image'] ?? '', $user['user_bio'] ?? '', $room['r_name'] ?? ''
+                            $isGroupRoom ? '1' : '0', $user['user_image'] ?? '',
+                            $user['user_bio'] ?? '', $room['r_name'] ?? ''
                         );
                     }
-                } else {
-                    foreach ($roomUserIds as $uid) {
-                        if ($uid == $mSenderId) continue;
-                        $recipient = $allUsers[$uid] ?? null;
-                        if (!$recipient) continue;
-
-                        $this->sendNotificationIfValid(
-                            $notificationController, $recipient,
-                            $user['user_first_name'], $decryptedBody,
-                            $mSenderId, $room['r_id'], $user['user_mobile_num'],
-                            '1', $user['user_image'] ?? '', $user['user_bio'] ?? '', $room['r_name'] ?? ''
-                        );
-                    }
+                } catch (\Throwable $e) {
+                    log_message('error', 'sendMessage notification failed: ' . $e->getMessage());
                 }
             }
 
@@ -580,13 +596,12 @@ class MessageController extends BaseController
 
         } catch (\Throwable $e) {
             log_message('error', 'sendMessage failed: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
-            // Surface the real cause (same convention as updateMessage) so the
-            // desktop's red bubble names the actual failure — the opaque
-            // "An error occurred" gave no way to tell a missing messages
-            // column from a transient error.
+            // Keep internal/SQL details in the log only. Validation branches
+            // above return action-specific copy, which the client can show
+            // safely; an unexpected failure must not leak the DB error to UI.
             return $this->response->setJSON([
                 'status' => false,
-                'message' => $e->getMessage(),
+                'message' => 'Message could not be sent. Please try again.',
             ]);
         }
     }

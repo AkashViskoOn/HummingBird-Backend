@@ -106,7 +106,7 @@ class UserController extends BaseController
         $token = encode_jwt([
             'user_id' => $user['user_id'],
             'user_mobile_num' => $user['user_mobile_num'],
-        ]);
+        ], CONSUMER_SESSION_TTL);
 
         $this->autoAttachPendingRooms($user);
 
@@ -408,7 +408,7 @@ class UserController extends BaseController
             $newToken = encode_jwt([
                 'user_id' => $updatedUser['user_id'],
                 'user_mobile_num' => $updatedUser['user_mobile_num'],
-            ]);
+            ], CONSUMER_SESSION_TTL);
 
             return $this->response->setJSON([
                 'status' => true, 'message' => 'Number changed',

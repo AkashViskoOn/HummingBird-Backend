@@ -6,6 +6,7 @@ use Config\Services;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\FeatureTestTrait;
 use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
 
 /**
  * End-to-end happy path for one consumer endpoint: prove that a real signed
@@ -176,5 +177,15 @@ final class ConsumerHappyPathFeatureTest extends CIUnitTestCase
 
         $json = $this->json($result);
         $this->assertTrue($json->status);
+    }
+
+    public function testConsumerSessionTtlOutlivesNormalAppUsage(): void
+    {
+        // The app persists `isLoggedIn` across launches and has no refresh
+        // endpoint, so phone sessions must not silently die after 24h.
+        $token = encode_jwt(['user_id' => 'u-test-1'], CONSUMER_SESSION_TTL);
+        $claims = JWT::decode($token, new Key(self::SECRET, 'HS256'));
+
+        $this->assertGreaterThan(time() + (29 * 86400), $claims->exp);
     }
 }

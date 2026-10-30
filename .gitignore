@@ -13,6 +13,12 @@ node_modules/
 
 # Local private keys
 *.ppk
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
 
 # PHPUnit cache
 .phpunit.result.cache
@@ -27,8 +33,27 @@ node_modules/
 /writable/session/*
 /writable/debugbar/*
 
-# Private credentials
-/app/Controllers/pvKey.json
+# Runtime databases
+/writable/*.sqlite
+/writable/*.sqlite3
+/writable/*.db
+/writable/humming_bird
+
+# Runtime uploads
+/writable/uploads/*
+!/writable/uploads/index.html
+
+# Generated test/build output
+/build/
+/writable/test_img.png
+
+# Service-account credentials
+*service-account*.json
+*firebase-adminsdk*.json
+/writable/credentials/
 
 # Private credentials
 /app/Controllers/pvKey.json
+
+# Editor/SFTP settings
+/.vscode/sftp.json

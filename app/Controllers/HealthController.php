@@ -41,7 +41,7 @@ class HealthController extends BaseController
      * Configuration whose absence degrades a feature rather than the app.
      */
     private const OPTIONAL_SECRETS = [
-        'OPENAI_API_KEY',
+        'GEMINI_API_KEY',
         'ENCRYPTION_KEY',
         'MSG91_AUTH_KEY',
         'FCM_SERVICE_ACCOUNT_PATH',

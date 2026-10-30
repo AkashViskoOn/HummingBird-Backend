@@ -8,17 +8,120 @@ use App\Models\UserModel;
 class AiService
 {
     private ?string $apiKey;
-    private string $apiUrl = 'https://api.openai.com/v1/chat/completions';
-    private string $model = 'gpt-4o-mini';
+    private string $apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
+    private string $model = 'gemini-3.5-flash';
 
     public function __construct()
     {
-        $this->apiKey = getenv('OPENAI_API_KEY') ?: ($_ENV['OPENAI_API_KEY'] ?? ($_SERVER['OPENAI_API_KEY'] ?? null));
+        $this->apiKey = getenv('GEMINI_API_KEY') ?: ($_ENV['GEMINI_API_KEY'] ?? ($_SERVER['GEMINI_API_KEY'] ?? null));
+        $model = getenv('GEMINI_MODEL') ?: ($_ENV['GEMINI_MODEL'] ?? ($_SERVER['GEMINI_MODEL'] ?? null));
+        if (!empty($model)) {
+            $this->model = $model;
+        }
         if (empty($this->apiKey)) {
-            log_message('error', '[AiService] OPENAI_API_KEY is not set in environment (checked getenv, $_ENV, $_SERVER)');
+            log_message('error', '[AiService] GEMINI_API_KEY is not set in environment (checked getenv, $_ENV, $_SERVER)');
         }
     }
 
+    private function callGemini(string $prompt, int $maxRetries = 1, string $systemPrompt = ''): ?string
+    {
+        if (empty($this->apiKey)) {
+            log_message('error', '[AiService::callGemini] Cannot call Gemini: API key is empty');
+            return null;
+        }
+
+        $payload = [
+            'contents' => [
+                ['role' => 'user', 'parts' => [['text' => $prompt]]],
+            ],
+            'generationConfig' => [
+                'maxOutputTokens' => 1024,
+                'temperature' => 0.7,
+            ],
+        ];
+        if (!empty($systemPrompt)) {
+            $payload['systemInstruction'] = ['parts' => [['text' => $systemPrompt]]];
+        }
+        $data = json_encode($payload);
+        $url = $this->apiUrl . '/' . rawurlencode($this->model) . ':generateContent';
+
+        for ($attempt = 0; $attempt <= $maxRetries; $attempt++) {
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'x-goog-api-key: ' . $this->apiKey,
+            ]);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+            $caPath = $this->getCACertPath();
+            if (!empty($caPath)) {
+                curl_setopt($ch, CURLOPT_CAINFO, $caPath);
+            }
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+            if ($response === false) {
+                $error = curl_error($ch);
+                curl_close($ch);
+                log_message('error', '[AiService::callGemini] cURL error (attempt ' . ($attempt + 1) . '): ' . $error);
+                if ($attempt < $maxRetries) {
+                    sleep(1);
+                    continue;
+                }
+                return null;
+            }
+
+            curl_close($ch);
+
+            if ($httpCode !== 200) {
+                $responseBody = substr($response, 0, 1000);
+                log_message('error', '[AiService::callGemini] HTTP ' . $httpCode . ': ' . $responseBody);
+                if ($attempt < $maxRetries) {
+                    sleep(1);
+                    continue;
+                }
+                return null;
+            }
+
+            $decoded = json_decode($response, true);
+            $text = $this->extractGeminiText(is_array($decoded) ? $decoded : null);
+            if ($text !== null) {
+                return $text;
+            }
+            log_message('error', '[AiService::callGemini] Unexpected response structure: ' . substr($response, 0, 500));
+            return null;
+        }
+
+        return null;
+    }
+
+    private function extractGeminiText(?array $decoded): ?string
+    {
+        $parts = $decoded['candidates'][0]['content']['parts'] ?? [];
+        if (!is_array($parts)) {
+            return null;
+        }
+
+        $chunks = [];
+        foreach ($parts as $part) {
+            if (!is_array($part) || ($part['thought'] ?? false) === true) {
+                continue;
+            }
+            if (isset($part['text']) && is_string($part['text']) && trim($part['text']) !== '') {
+                $chunks[] = $part['text'];
+            }
+        }
+
+        return $chunks === [] ? null : trim(implode('', $chunks));
+    }
+
+    /*
+     * OpenAI is disabled for now in favour of Gemini above. The previous
+     * implementation is kept so it can be re-enabled quickly if needed.
+     *
     private function callOpenAI(string $prompt, int $maxRetries = 1, string $systemPrompt = ''): ?string
     {
         if (empty($this->apiKey)) {
@@ -33,13 +136,13 @@ class AiService
         $messages[] = ['role' => 'user', 'content' => $prompt];
 
         $data = json_encode([
-            'model' => $this->model,
+            'model' => 'gpt-4o-mini',
             'messages' => $messages,
             'max_tokens' => 1024,
         ]);
 
         for ($attempt = 0; $attempt <= $maxRetries; $attempt++) {
-            $ch = curl_init($this->apiUrl);
+            $ch = curl_init('https://api.openai.com/v1/chat/completions');
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
@@ -89,6 +192,8 @@ class AiService
 
         return null;
     }
+    */
+
 
     private function getCACertPath(): string
     {
@@ -115,7 +220,7 @@ class AiService
     public function generateText(string $prompt): ?string
     {
         $systemPrompt = 'Generate a text message based on the user\'s prompt. Don\'t include any comments or suggestions. The message should be impressive and ready to send. Return only the message text.';
-        $result = $this->callOpenAI($prompt, 1, $systemPrompt);
+        $result = $this->callGemini($prompt, 1, $systemPrompt);
         if ($result !== null) {
             return trim($result);
         }
@@ -124,7 +229,7 @@ class AiService
 
     public function getAiMessage(string $prompt): ?string
     {
-        return $this->callOpenAI($prompt);
+        return $this->callGemini($prompt);
     }
 
     public function getReplySuggestions(string $message, array $conversationHistory = []): ?array
@@ -139,7 +244,7 @@ class AiService
             . 'Suggest 5 short, natural reply options a person could send. '
             . 'Return only the suggestions as a JSON array of strings, nothing else.';
 
-        $result = $this->callOpenAI($prompt);
+        $result = $this->callGemini($prompt);
         if ($result !== null) {
             $decoded = json_decode($result, true);
             if (is_array($decoded)) {
@@ -159,7 +264,7 @@ class AiService
             . 'Message: "' . $message . '"\n'
             . 'Return only the category name as a JSON object: {"category": "..."}';
 
-        $result = $this->callOpenAI($prompt);
+        $result = $this->callGemini($prompt);
         if ($result !== null) {
             $decoded = json_decode($result, true);
             if (isset($decoded['category'])) {
@@ -193,7 +298,7 @@ class AiService
         $prompt = 'Summarize the following conversation in ' . $maxLength . ' characters or less. '
             . 'Return only the summary text, nothing else.\n\n' . $conversationText;
 
-        $result = $this->callOpenAI($prompt);
+        $result = $this->callGemini($prompt);
         if ($result !== null) {
             $summary = trim($result);
             if (mb_strlen($summary) > $maxLength) {
@@ -220,7 +325,7 @@ class AiService
             . 'Return a JSON object with: sentiment (positive/negative/neutral), score (0.0 to 1.0), and emoji. '
             . 'Example: {"sentiment": "positive", "score": 0.85, "emoji": "😊"}';
 
-        $result = $this->callOpenAI($prompt);
+        $result = $this->callGemini($prompt);
         if ($result !== null) {
             $decoded = json_decode($result, true);
             if (isset($decoded['sentiment'], $decoded['score'])) {
@@ -286,7 +391,7 @@ class AiService
             . 'Return ONLY the translated text, nothing else. '
             . 'Message: "' . $message . '"';
 
-        $result = $this->callOpenAI($prompt);
+        $result = $this->callGemini($prompt);
         if ($result !== null) {
             return [
                 'translated_text' => trim($result),
@@ -306,7 +411,7 @@ class AiService
             . 'and reason (short string explaining why). '
             . 'Example: {"is_spam": false, "confidence": 0.05, "reason": "Legitimate message"}';
 
-        $result = $this->callOpenAI($prompt);
+        $result = $this->callGemini($prompt);
         if ($result !== null) {
             $decoded = json_decode($result, true);
             if (isset($decoded['is_spam'], $decoded['confidence'])) {
@@ -327,7 +432,7 @@ class AiService
             . 'Respond to this user message in a friendly, concise way. '
             . 'Message: "' . $message . '"';
 
-        $result = $this->callOpenAI($prompt);
+        $result = $this->callGemini($prompt);
         if ($result !== null) {
             return [
                 'response' => trim($result),

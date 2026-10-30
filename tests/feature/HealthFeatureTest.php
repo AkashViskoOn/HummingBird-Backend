@@ -197,7 +197,7 @@ final class HealthFeatureTest extends CIUnitTestCase
     {
         $this->setEnv('JWT_SECRET', 'super-secret-jwt-value-do-not-leak');
         $this->setEnv('INTERNAL_CRON_KEY', 'super-secret-cron-value-do-not-leak');
-        $this->setEnv('OPENAI_API_KEY', 'sk-do-not-leak-me');
+        $this->setEnv('GEMINI_API_KEY', 'sk-do-not-leak-me');
 
         foreach (['health', 'health/ready'] as $uri) {
             $body = (string) $this->call($uri)->response()->getBody();
@@ -224,7 +224,7 @@ final class HealthFeatureTest extends CIUnitTestCase
     {
         $this->setEnv('JWT_SECRET', 'unit-test-jwt-secret-value');
         $this->setEnv('INTERNAL_CRON_KEY', 'unit-test-internal-cron-key');
-        $this->setEnv('OPENAI_API_KEY', false);
+        $this->setEnv('GEMINI_API_KEY', false);
 
         $result = $this->call('health/ready');
 
@@ -236,6 +236,6 @@ final class HealthFeatureTest extends CIUnitTestCase
         // A missing optional secret must not make the app "unready".
         $this->assertTrue($secrets->ok);
         $this->assertSame([], $secrets->missing);
-        $this->assertContains('OPENAI_API_KEY', $secrets->optional_missing);
+        $this->assertContains('GEMINI_API_KEY', $secrets->optional_missing);
     }
 }

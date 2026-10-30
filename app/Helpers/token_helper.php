@@ -2,6 +2,15 @@
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 
+/**
+ * Consumer (phone) session lifetime.
+ *
+ * The app persists `isLoggedIn` across launches and has no refresh-token
+ * endpoint, so a 24h token turned every user into "Authorization Failed"
+ * one day after login. Keep phone sessions long-lived; desktop tokens stay on
+ * the shorter default because they are device-bound and can be revoked.
+ */
+const CONSUMER_SESSION_TTL = 60 * 60 * 24 * 30;
 
 function encode_jwt($payload, $expiresIn = 86400)
 {

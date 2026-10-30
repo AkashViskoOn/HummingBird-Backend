@@ -540,4 +540,43 @@ final class OwnershipAuthorizationFeatureTest extends CIUnitTestCase
         $this->assertNotNull($row, 'the sent message row must exist');
         $this->assertNull($row['m_group_id'], 'an ordinary send stores no album group id');
     }
+
+    public function testMobileStyleEmptyOptionalFieldsAreNormalised(): void
+    {
+        // Flutter posts every optional field through Dio FormData, which turns
+        // null into ''. MySQL in strict mode rejects '' for the numeric
+        // scheduler/reply columns, so a normal text send failed while the
+        // desktop (which omits absent fields) worked. The controller must
+        // store 0/NULL instead of the empty string.
+        $result = $this->call(
+            'POST',
+            'message/send-message',
+            ['Authorization' => 'Bearer ' . $this->jwtFor($this->userA, '100001')],
+            [
+                'room_id'      => (string) $this->roomAB,
+                'receiver_id'  => (string) $this->userB,
+                'message_type' => '0',
+                'message'      => 'encrypted-mobile-empty-optionals',
+                'is_scheduled' => '0',
+                'scheduled_at' => '',
+                'm_interval'   => '',
+                'm_count'      => '',
+                'm_replied_on' => '',
+                'm_story_ref'  => '',
+            ],
+        );
+
+        $result->assertStatus(200, 'body: ' . $result->response()->getBody());
+        $json = $this->json($result);
+        $this->assertTrue($json->status, 'send must succeed, body: ' . $result->response()->getBody());
+
+        $row = $this->db->table('messages')
+            ->where('m_message', 'encrypted-mobile-empty-optionals')
+            ->get()
+            ->getRowArray();
+        $this->assertNotNull($row, 'the sent message row must exist');
+        $this->assertSame('0', (string) $row['m_interval'], 'empty interval becomes 0');
+        $this->assertSame('0', (string) $row['m_count'], 'empty count becomes 0');
+        $this->assertNull($row['m_replied_on'], 'empty reply id becomes NULL, not 0/empty');
+    }
 }
